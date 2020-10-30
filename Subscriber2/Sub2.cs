@@ -8,21 +8,46 @@ namespace Subscriber2
     {
         static void Main(string[] args)
         {
-            // Instanz für Client wird erstellt
+            //Instanz der Klasse MqttClient wird erzeugt (Package: uPLibrary.Networking.M2Mqtt, MQTT für C#)
+            //Parameter: Hostname/IP für Zugriff auf MQTT-Broker als String übergeben
             MqttClient client = new MqttClient("desktop-dpcek01");
 
-            // Für Event registrieren, um veröffentlichte Nachrichten zu erhalten
+            /*
+             * Der Client registriert sich für Event, um veröffentlichte Nachrichten zu erhalten
+             * Die erhaltene Nachricht wird dem Event MqttMsgPublishReceived angefügt
+             */
             client.MqttMsgPublishReceived += Client_recievedMessage;
 
-            string clientId = "client_Sub2_";
-            byte status = client.Connect(clientId, "mqtt-test", "mqtt-test", false, default);
+            string clientId = "client_Sub2_"; // sinnhafte Benamung, um über Webinterface auf Client schließen zu können
 
-            //Console.WriteLine(status); // ungleich 0, falls Verbindung nicht aufgebaut werden konnte
+            /*
+             *  über Connect wird sich mit dem Broker verbunden
+             *  weitere Parameter werden der Methode übergeben:
+             *  - clientId: mit dieser Id verbindet sich unser Client mit dem Broker
+             *  - username + passwort: Credentials, die zum Herstellen einer Verbindung berechtigen (entsprechender User wurde separat in RabbitMQ angelegt)
+             *  - cleanSession: haben wir auf 'false' gesetzt, um eine persistente Sitzung aufzubauen - anderenfalls würde die Abwesenheits-Queue des Clients geleert werden
+             *                  und er würde keine verpassten Nachrichten nach einem neuen Verbindungsaufbau erhalten
+             *  - keepAlivePeriod: Zeitangebe in Millisekunden, in der maximal keine Koomunikation zwischen Cleint und Broker stattfindet
+             *                      --> da bei uns der default Wert in allen Testdurchläufen funktioniert hat, haben wir diesen nicht individuell angepasst
+             *  
+             *  Außerdem wird der Rückgabewert noch in ein Byte geschrieben. Dies half beim Troubleshooting zu Beginn. Inzwischen ist die Ausgabe auskommentiert.
+             *  Ist 'status' ungleich 0, konnte keine Verbindung aufgebaut werden
+             */
+            byte status = client.Connect(clientId, "mqtt-test", "mqtt-test", false, default);
+            //Console.WriteLine(status);
+
             Console.Write("ZUM ABBRUCH EINE BELIEGE TASTE DRÜCKEN\n\n");
             Console.WriteLine("subscribed: /buli2, /prem\n");
 
+            /*
+             * Der Subscribe-Methode werden als Parameter die Arrays der Topics und der QoS-Levels mitgegeben
+             * Zu beachten ist, dass für jedes weitere Topic ein weiterer Eintrag im Array des QoS-Levels ergänzt werden muss
+             * 
+             * Informationen über die QoS-Levels haben wir unter anderem hier bezogen: https://mntolia.com/mqtt-qos-levels-explained/
+             */
             client.Subscribe(new String[] { "/buli2", "/prem" }, new byte[] { MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE });
 
+            // durch die folgenden fünf Zeilen kann des Programm durch die Eingabe einer beliebigen Taste unterbrochen werden
             var stop = Console.ReadKey();
             if (stop != null)
             {
@@ -30,6 +55,10 @@ namespace Subscriber2
             }
         }
 
+        /*
+         * Funktion zum Anfügen der Nachrichten an den EventHandler
+         * Neben der eigentlichen Nachricht geben wir der Übersicht geschuldet noch das Topic mit aus
+         */
         static void Client_recievedMessage(object sender, MqttMsgPublishEventArgs e)
         {
             var topic = e.Topic.ToString();
